@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>일정</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f0f;
+    color: #f0f0f0;
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .title { font-size: 17px; font-weight: 600; }
+  .date-label { font-size: 13px; color: #888; }
+  .tab-row { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+  .tab {
+    font-size: 13px; padding: 5px 16px; border-radius: 20px;
+    border: 1px solid #333; background: transparent; color: #888;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .tab.active { background: #f0f0f0; color: #0f0f0f; border-color: transparent; }
+
+  /* date history */
+  .history-bar {
+    display: flex; gap: 8px; margin-bottom: 1.25rem;
+    overflow-x: auto; padding-bottom: 4px; scrollbar-width: none;
+  }
+  .history-bar::-webkit-scrollbar { display: none; }
+  .date-chip {
+    font-size: 12px; padding: 4px 12px; border-radius: 20px;
+    border: 1px solid #2a2a2a; background: transparent; color: #666;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+  }
+  .date-chip.active { border-color: #555; color: #ccc; background: #1a1a1a; }
+  .date-chip.del { color: #3a3a3a; font-size: 11px; padding: 4px 8px; }
+
+  /* timeline */
+  .timeline { display: flex; flex-direction: column; gap: 4px; }
+  .block { display: flex; align-items: stretch; gap: 12px; }
+  .time-col { display: flex; flex-direction: column; align-items: center; min-width: 48px; }
+  .time-label { font-size: 11px; color: #555; white-space: nowrap; padding-top: 3px; }
+  .line-wrap { flex: 1; display: flex; justify-content: center; padding: 3px 0; }
+  .line { width: 1px; background: #222; }
+  .card {
+    flex: 1; border-radius: 10px; border: 1px solid #1e1e1e;
+    padding: 10px 12px; background: #171717; margin-bottom: 4px;
+    cursor: pointer; transition: opacity 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .card.done { opacity: 0.4; }
+  .card-body { flex: 1; }
+  .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .card-title { font-size: 13px; font-weight: 500; flex: 1; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .card-sub { font-size: 12px; color: #666; margin-left: 15px; line-height: 1.5; margin-top: 1px; }
+  .check-icon { font-size: 16px; color: #333; flex-shrink: 0; transition: color 0.15s; }
+  .card.done .check-icon { color: #4caf50; }
+
+  .cat-자유 { background: #0d2035; color: #5aa3e8; }
+  .cat-과외 { background: #0e2010; color: #6db85a; }
+  .cat-공부 { background: #2a1a00; color: #d4a042; }
+  .cat-코딩 { background: #1a1530; color: #9f8fe0; }
+  .cat-운동 { background: #2a1008; color: #d87044; }
+  .cat-기타 { background: #1a1a1a; color: #888; }
+
+  .dot-자유 { background: #378ADD; }
+  .dot-과외 { background: #639922; }
+  .dot-공부 { background: #BA7517; }
+  .dot-코딩 { background: #7F77DD; }
+  .dot-운동 { background: #D85A30; }
+  .dot-기타 { background: #555; }
+
+  /* input panel */
+  .input-panel { display: none; flex-direction: column; gap: 12px; }
+  .input-panel.show { display: flex; }
+  .format-hint {
+    font-size: 11px; color: #555; line-height: 1.8;
+    background: #141414; border: 1px solid #1e1e1e;
+    border-radius: 10px; padding: 10px 12px;
+  }
+  textarea {
+    width: 100%; font-size: 12px; font-family: 'Courier New', monospace;
+    color: #ccc; background: #141414; border: 1px solid #2a2a2a;
+    border-radius: 10px; padding: 12px; resize: vertical;
+    min-height: 200px; line-height: 1.7; outline: none;
+  }
+  textarea:focus { border-color: #444; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-apply {
+    flex: 1; font-size: 13px; padding: 10px; border-radius: 10px;
+    border: none; background: #f0f0f0; color: #0f0f0f;
+    font-weight: 500; cursor: pointer;
+  }
+  .btn-apply:active { opacity: 0.8; }
+  .btn-reset {
+    font-size: 13px; padding: 10px 16px; border-radius: 10px;
+    border: 1px solid #2a2a2a; background: transparent; color: #666; cursor: pointer;
+  }
+  .empty { font-size: 13px; color: #444; text-align: center; padding: 3rem 0; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <span class="title">일정</span>
+  <span class="date-label" id="dateLabel">—</span>
+</div>
+
+<div class="tab-row">
+  <button class="tab active" id="tab-view" onclick="switchTab('view')">타임라인</button>
+  <button class="tab" id="tab-input" onclick="switchTab('input')">입력</button>
+</div>
+
+<div id="viewPanel">
+  <div class="history-bar" id="historyBar"></div>
+  <div class="timeline" id="timeline">
+    <div class="empty">입력 탭에서 일정을 붙여넣어 주세요</div>
+  </div>
+</div>
+
+<div class="input-panel" id="inputPanel">
+  <div class="format-hint">
+    양식 예시:<br>
+    [날짜] 2026-05-27 수요일<br>
+    17:00-18:30 | 자유 | 게임/휴식<br>
+    18:30-20:00 | 과외 | 영어 과외<br>
+    20:00-21:30 | 공부 | 수학 복습, 국어 평가문제<br>
+    21:30-23:00 | 코딩 | FastAPI 강의<br>
+    23:00-23:30 | 기타 | 씻기<br>
+    카테고리: 자유 / 과외 / 공부 / 코딩 / 운동 / 기타
+  </div>
+  <textarea id="rawInput" placeholder="여기에 붙여넣기..."></textarea>
+  <div class="btn-row">
+    <button class="btn-apply" onclick="applyInput()">적용</button>
+    <button class="btn-reset" onclick="resetInput()">초기화</button>
+  </div>
+</div>
+
+<script>
+const CATS = ['자유','과외','공부','코딩','운동','기타'];
+let currentDate = '';
+
+function getAllSchedules() {
+  try { return JSON.parse(localStorage.getItem('schedules_all') || '{}'); } catch(e) { return {}; }
+}
+function saveAllSchedules(all) {
+  localStorage.setItem('schedules_all', JSON.stringify(all));
+}
+function getChecked(dateKey) {
+  try { return JSON.parse(localStorage.getItem('checked_' + dateKey) || '[]'); } catch(e) { return []; }
+}
+function saveChecked(dateKey, arr) {
+  localStorage.setItem('checked_' + dateKey, JSON.stringify(arr));
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-view').classList.toggle('active', tab === 'view');
+  document.getElementById('tab-input').classList.toggle('active', tab === 'input');
+  document.getElementById('viewPanel').style.display = tab === 'view' ? 'block' : 'none';
+  document.getElementById('inputPanel').classList.toggle('show', tab === 'input');
+}
+
+function parseInput(raw) {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  let date = '';
+  const blocks = [];
+  for (const line of lines) {
+    if (line.startsWith('[날짜]')) { date = line.replace('[날짜]', '').trim(); continue; }
+    const parts = line.split('|').map(p => p.trim());
+    if (parts.length < 2) continue;
+    const [start, end] = parts[0].split('-').map(t => t.trim());
+    if (!start) continue;
+    blocks.push({ start, end: end || '', cat: parts[1] || '기타', sub: parts[2] || '' });
+  }
+  return { date, blocks };
+}
+
+function rebuildRaw(data) {
+  let out = data.date ? `[날짜] ${data.date}\n` : '';
+  for (const b of data.blocks) out += `${b.start}${b.end ? '-'+b.end : ''} | ${b.cat} | ${b.sub}\n`;
+  return out.trim();
+}
+
+function renderHistory() {
+  const all = getAllSchedules();
+  const keys = Object.keys(all).sort().reverse();
+  const bar = document.getElementById('historyBar');
+  if (!keys.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = keys.map(k => {
+    const label = all[k].date || k;
+    const active = k === currentDate ? 'active' : '';
+    return `<button class="date-chip ${active}" onclick="loadDate('${k}')">${label}</button>`;
+  }).join('') + `<button class="date-chip del" onclick="deleteCurrentDate()">삭제</button>`;
+}
+
+function loadDate(key) {
+  const all = getAllSchedules();
+  if (!all[key]) return;
+  currentDate = key;
+  render(all[key]);
+  renderHistory();
+  const ta = document.getElementById('rawInput');
+  ta.value = rebuildRaw(all[key]);
+}
+
+function deleteCurrentDate() {
+  if (!currentDate) return;
+  const all = getAllSchedules();
+  delete all[currentDate];
+  localStorage.removeItem('checked_' + currentDate);
+  saveAllSchedules(all);
+  currentDate = '';
+  const keys = Object.keys(all).sort().reverse();
+  if (keys.length) loadDate(keys[0]);
+  else { render({ date: '', blocks: [] }); renderHistory(); }
+}
+
+function render(data) {
+  document.getElementById('dateLabel').textContent = data.date || '—';
+  const tl = document.getElementById('timeline');
+  if (!data.blocks || !data.blocks.length) {
+    tl.innerHTML = '<div class="empty">입력 탭에서 일정을 붙여넣어 주세요</div>';
+    return;
+  }
+  const checked = getChecked(currentDate);
+  tl.innerHTML = data.blocks.map((b, i) => {
+    const isLast = i === data.blocks.length - 1;
+    const cat = CATS.includes(b.cat) ? b.cat : '기타';
+    const done = checked.includes(i) ? 'done' : '';
+    return `
+      <div class="block">
+        <div class="time-col">
+          <span class="time-label">${b.start}</span>
+          ${!isLast ? `<div class="line-wrap"><div class="line"></div></div>` : ''}
+        </div>
+        <div class="card ${done}" onclick="toggleCheck(${i})">
+          <div class="card-body">
+            <div class="card-top">
+              <div class="dot dot-${cat}"></div>
+              <span class="card-title">${b.sub || b.cat}</span>
+              <span class="badge cat-${cat}">${cat}</span>
+            </div>
+            ${b.end ? `<div class="card-sub">~ ${b.end}</div>` : ''}
+          </div>
+          <span class="check-icon">${checked.includes(i) ? '✓' : '○'}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleCheck(idx) {
+  const checked = getChecked(currentDate);
+  const pos = checked.indexOf(idx);
+  if (pos === -1) checked.push(idx); else checked.splice(pos, 1);
+  saveChecked(currentDate, checked);
+  const all = getAllSchedules();
+  render(all[currentDate] || { date: '', blocks: [] });
+}
+
+function applyInput() {
+  const raw = document.getElementById('rawInput').value;
+  const data = parseInput(raw);
+  const key = data.date || ('date_' + Date.now());
+  currentDate = key;
+  const all = getAllSchedules();
+  all[key] = data;
+  saveAllSchedules(all);
+  render(data);
+  renderHistory();
+  switchTab('view');
+}
+
+function resetInput() {
+  document.getElementById('rawInput').value = '';
+}
+
+function init() {
+  const all = getAllSchedules();
+  const keys = Object.keys(all).sort().reverse();
+  if (keys.length) loadDate(keys[0]);
+  else renderHistory();
+}
+
+init();
+</script>
+</body>
+</html>
